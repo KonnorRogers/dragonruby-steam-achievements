@@ -22,7 +22,7 @@ else()
 endif()
 
 # Directories
-set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/lib/extension.cpp")
+set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/src/extension.cpp")
 set(BUILD_DIR "${CMAKE_SOURCE_DIR}/mygame/native/${PLATFORM}")
 
 # Set output directory
