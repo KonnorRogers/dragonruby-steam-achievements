@@ -169,6 +169,10 @@ bool CSteamAchievements::ClearAchievement(const char* ID)
 	return SteamUserStats()->ClearAchievement(ID);
 }
 
+bool CSteamAchievements::StoreStats() {
+	return SteamUserStats()->StoreStats();
+}
+
 void CSteamAchievements::OnUserStatsReceived( UserStatsReceived_t *pCallback )
 {
 	// we may get callbacks for other games' stats arriving, ignore them
@@ -216,6 +220,9 @@ void CSteamAchievements::OnAchievementStored( UserAchievementStored_t *pCallback
 
 
 extern "C" {
+    static drb_api_t *drb_api;
+    mrb_state *global_state;
+
     CSteamAchievements *steamStats = new CSteamAchievements();
 
     static void steam_achievements_shutdown () {
@@ -227,35 +234,35 @@ extern "C" {
     }
 
     static mrb_value steam_achievements_mrb_set_stat(mrb_state *state, mrb_value self) {
-    		mrb_value name;
-		mrb_value int_or_float;
+    	mrb_value name;
+	mrb_value int_or_float;
 
-		// https://github.com/mruby/mruby/blob/510ebd738dc1326fd8c9f3a702f0d826d7fb330a/src/class.c#L1704-L1723
-		// expect 2 ints / floats
-    		mrb_get_args(state, "ii", &name, &int_or_float);
+	// https://github.com/mruby/mruby/blob/510ebd738dc1326fd8c9f3a702f0d826d7fb330a/src/class.c#L1704-L1723
+	// expect 2 ints / floats
+    	drb_api->mrb_get_args(state, "ii", &name, &int_or_float);
 
-		const char* c_str = mrb_str_to_cstr(state, name);
+	const char* c_str = drb_api->mrb_str_to_cstr(state, name);
 
-    		if (mrb_integer_p(int_or_float)) {
-        		int32_t i32 = (int32_t)mrb_integer(int_or_float);
-        		return mrb_bool_value(steamStats->SetStat(c_str, i32));
-    		}
-    		else if (mrb_float_p(int_or_float)) {
-        		float c_float = (float)mrb_float(int_or_float);
-        		return mrb_bool_value(steamStats->SetStat(c_str, c_float));
-    		}
+    	if (mrb_integer_p(int_or_float)) {
+        	int32_t i32 = (int32_t)mrb_integer(int_or_float);
+        	return mrb_bool_value(steamStats->SetStat(c_str, i32));
+    	}
+    	else if (mrb_float_p(int_or_float)) {
+        	float c_float = (float)mrb_float(int_or_float);
+        	return mrb_bool_value(steamStats->SetStat(c_str, c_float));
+    	}
 
-		// neither int or float given, just return false. (should we raise?)
-		auto standard_error = mrb_class_get(state, "StandardError");
-		mrb_raise(state, standard_error, "Float or Integer not given to SetStat");
-    		return mrb_false_value();
+	// neither int or float given, just return false. (should we raise?)
+	auto standard_error = drb_api->mrb_class_get(state, "StandardError");
+	drb_api->mrb_raise(state, standard_error, "Float or Integer not given to SetStat");
+    	return mrb_false_value();
     }
 
     static mrb_value steam_achievements_mrb_unlock_achievement(mrb_state *state, mrb_value self) {
 		char *c_str;
 
 		// CString
-		mrb_get_args(state, "z", &c_str);
+		drb_api->mrb_get_args(state, "z", &c_str);
 
 		return mrb_bool_value(steamStats->UnlockAchievement(c_str));
     }
@@ -266,7 +273,7 @@ extern "C" {
 		uint32 c_maxProgress;
 
 		// CString, int, int
-		mrb_get_args(state, "zii", &c_str, &c_currentProgress, &c_maxProgress);
+		drb_api->mrb_get_args(state, "zii", &c_str, &c_currentProgress, &c_maxProgress);
 
 		return mrb_bool_value(steamStats->IndicateAchievementProgress(c_str, c_currentProgress, c_maxProgress));
     }
@@ -276,7 +283,7 @@ extern "C" {
 		char *c_str;
 
 		// CString
-		mrb_get_args(state, "z", &c_str);
+		drb_api->mrb_get_args(state, "z", &c_str);
 
 		return mrb_bool_value(steamStats->ClearAchievement(c_str));
     }
@@ -293,17 +300,14 @@ extern "C" {
 		char *c_str;
 
 		// CString
-		mrb_get_args(state, "z", &c_str);
+		drb_api->mrb_get_args(state, "z", &c_str);
 
-		return mrb_int_value(state, steamStats->GetAchievementStatus(c_str));
+		return drb_api->mrb_int_value(state, steamStats->GetAchievementStatus(c_str));
     }
 
     static mrb_value steam_achievements_mrb_store_stats(mrb_state *state, mrb_value self) {
 		return mrb_bool_value(steamStats->StoreStats());
     }
-
-    static drb_api_t *drb_api;
-    mrb_state *global_state;
 
     DRB_FFI_EXPORT
     void drb_register_c_extensions_with_api(mrb_state *state, struct drb_api_t *api) {
@@ -314,19 +318,19 @@ extern "C" {
 	// Singleton for steam achievements, may live to regret this, but fine for now.
 
 	// SetStat
-	mrb_define_module_function(state, SteamStats, "set_stat", steam_achievements_mrb_set_stat, MRB_ARGS_REQ(2));
+	drb_api->mrb_define_module_function(state, SteamStats, "set_stat", steam_achievements_mrb_set_stat, MRB_ARGS_REQ(2));
 	// UnlockAchievement
-	mrb_define_module_function(state, SteamStats, "unlock_achievement", steam_achievements_mrb_unlock_achievement, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "unlock_achievement", steam_achievements_mrb_unlock_achievement, MRB_ARGS_REQ(1));
 	// ClearAchievement
-	mrb_define_module_function(state, SteamStats, "reset_achievement", steam_achievements_mrb_clear_achievement, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "reset_achievement", steam_achievements_mrb_clear_achievement, MRB_ARGS_REQ(1));
 	// ResetAllStats
-	mrb_define_module_function(state, SteamStats, "reset_all_stats", steam_achievements_mrb_reset_all_stats, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats", steam_achievements_mrb_reset_all_stats, MRB_ARGS_NONE());
 	// ResetAllStatsAndAchievements
-	mrb_define_module_function(state, SteamStats, "reset_all_stats_and_achievements", steam_achievements_mrb_reset_all_stats_and_achievements, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats_and_achievements", steam_achievements_mrb_reset_all_stats_and_achievements, MRB_ARGS_NONE());
 	// GetAchievementStatus
-	mrb_define_module_function(state, SteamStats, "achievement_status", steam_achievements_mrb_get_achievement_status, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "achievement_status", steam_achievements_mrb_get_achievement_status, MRB_ARGS_REQ(1));
 	// StoreStats
-	mrb_define_module_function(state, SteamStats, "store_stats", steam_achievements_mrb_store_stats, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "store_stats", steam_achievements_mrb_store_stats, MRB_ARGS_NONE());
 
         printf("* INFO: C extension 'Steam Stats & Achievements' registration completed.\n");
 

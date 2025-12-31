@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
-project(extension C CXX)
+project(extension CXX)
+
+message(STATUS "C Compiler: ${CMAKE_C_COMPILER}")
+message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER}")
+message(STATUS "Compiler ID: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
 
 # Detect platform
 set(STEAMWORKS_SDK "${CMAKE_SOURCE_DIR}/steam-sdk")
