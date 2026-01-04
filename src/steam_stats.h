@@ -1,15 +1,15 @@
 #include "mruby.h"
 #include <steam/steam_api_flat.h>
 
-class CSteamAchievements
+class CSteamStats
 {
 private:
 	int64 app_id; // Our current AppID
 	bool initialized; // Have we called Request stats and received the callback?
 
 public:
-	CSteamAchievements();
-	~CSteamAchievements();
+	CSteamStats();
+	~CSteamStats();
 
 	bool UnlockAchievement(const char *ID);
 	bool ClearAchievement(const char *ID);
@@ -45,10 +45,10 @@ public:
 	bool ResetAllStats();
 	bool ResetAllStatsAndAchievements();
 
-	STEAM_CALLBACK( CSteamAchievements, OnUserStatsReceived, UserStatsReceived_t,
+	STEAM_CALLBACK( CSteamStats, OnUserStatsReceived, UserStatsReceived_t,
 		callbackUserStatsReceived );
-	STEAM_CALLBACK( CSteamAchievements, OnUserStatsStored, UserStatsStored_t,
+	STEAM_CALLBACK( CSteamStats, OnUserStatsStored, UserStatsStored_t,
 		callbackUserStatsStored );
-	STEAM_CALLBACK( CSteamAchievements, OnAchievementStored,
+	STEAM_CALLBACK( CSteamStats, OnAchievementStored,
 		UserAchievementStored_t, callbackAchievementStored );
 };

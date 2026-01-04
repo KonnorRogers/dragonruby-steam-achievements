@@ -1,4 +1,5 @@
 #include "steam/isteamuserstats.h"
+#include <_string.h>
 #include <cstdlib>
 #include <cstring>
 
@@ -14,9 +15,20 @@ extern "C" {
 #include <unistd.h>
 }
 
-#include "./extension.h"
+#include "./steam_stats.h"
 
 extern "C" {
+	typedef enum LogLevel
+	{
+    	LOG_LEVEL_SPAM=0,  // periodic (SPAMMY!) logging, like framerate updates, etc.
+    	LOG_LEVEL_DEBUG, // Debug stuff that might be uninteresting/spammy
+    	LOG_LEVEL_INFO,  // basic information. Good default log level.
+    	LOG_LEVEL_WARN,  // warnings that should be noticed.
+    	LOG_LEVEL_ERROR,  // errors that should always be noticed.
+    	LOG_LEVEL_UNFILTERED=0x7FFFFFFE,   // items that should be logged (almost) unconditionally.
+    	LOG_LEVEL_NOTHING=0x7FFFFFFF   // don't ever log this thing.
+	} LogLevel;
+
     // Stupid silly hack to be able to use `OutputDebugString` from Steam's API page. Maybe not needed?
     // https://stackoverflow.com/a/417846
     bool IsDebuggerPresent() {
@@ -69,12 +81,12 @@ extern "C" {
 // https://partner.steamgames.com/doc/api/ISteamGameServerStats <-- setting achieves from server
 // https://partner.steamgames.com/doc/api/ISteamUserStats <-- setting achievements client side
 
-CSteamAchievements::CSteamAchievements():
+CSteamStats::CSteamStats():
  app_id( 0 ),
  initialized( false ),
- callbackUserStatsReceived( this, &CSteamAchievements::OnUserStatsReceived ),
- callbackUserStatsStored( this, &CSteamAchievements::OnUserStatsStored ),
- callbackAchievementStored( this, &CSteamAchievements::OnAchievementStored )
+ callbackUserStatsReceived( this, &CSteamStats::OnUserStatsReceived ),
+ callbackUserStatsStored( this, &CSteamStats::OnUserStatsStored ),
+ callbackAchievementStored( this, &CSteamStats::OnAchievementStored )
 {
      bool steam_initialized = SteamAPI_Init();
      if (steam_initialized) {
@@ -83,7 +95,7 @@ CSteamAchievements::CSteamAchievements():
 
 }
 
-bool CSteamAchievements::UnlockAchievement(const char* ID)
+bool CSteamStats::UnlockAchievement(const char* ID)
 {
 	// Have we received a call back from Steam yet?
 	if (initialized)
@@ -94,9 +106,10 @@ bool CSteamAchievements::UnlockAchievement(const char* ID)
 	return false;
 }
 
-int CSteamAchievements::GetAchievementStatus(const char* ID) {
+int CSteamStats::GetAchievementStatus(const char* ID) {
 	bool isUnlocked;
-	if (SteamUserStats()->GetAchievement(ID, &isUnlocked)) {
+
+	if (initialized && SteamUserStats()->GetAchievement(ID, &isUnlocked)) {
     		if (isUnlocked) {
     			return 1;
     		} else {
@@ -108,9 +121,9 @@ int CSteamAchievements::GetAchievementStatus(const char* ID) {
 }
 
 // Can get an arbitrary user's achievement status given their steamId (Not implemented)
-int CSteamAchievements::GetUserAchievementStatus(CSteamID steamIDUser, const char* ID) {
+int CSteamStats::GetUserAchievementStatus(CSteamID steamIDUser, const char* ID) {
 	bool isUnlocked;
-	if (SteamUserStats()->GetUserAchievement(steamIDUser, ID, &isUnlocked)) {
+	if (initialized && SteamUserStats()->GetUserAchievement(steamIDUser, ID, &isUnlocked)) {
     		if (isUnlocked) {
     			return 1;
     		} else {
@@ -122,15 +135,14 @@ int CSteamAchievements::GetUserAchievementStatus(CSteamID steamIDUser, const cha
 }
 
 // This will flash the progress dialog
-bool CSteamAchievements::IndicateAchievementProgress(const char *name, uint32 currentProgress, uint32 maxProgress) {
-
+bool CSteamStats::IndicateAchievementProgress(const char *name, uint32 currentProgress, uint32 maxProgress) {
 	if (!initialized) { return false; }
 
 	return SteamUserStats()->IndicateAchievementProgress(name, currentProgress, maxProgress);
 }
 
 
-bool CSteamAchievements::ResetAllStats() {
+bool CSteamStats::ResetAllStats() {
 	if (!initialized) {
 		return false;
 	}
@@ -139,7 +151,7 @@ bool CSteamAchievements::ResetAllStats() {
 }
 
 
-bool CSteamAchievements::ResetAllStatsAndAchievements() {
+bool CSteamStats::ResetAllStatsAndAchievements() {
 	if (!initialized) {
 		return false;
 	}
@@ -147,19 +159,19 @@ bool CSteamAchievements::ResetAllStatsAndAchievements() {
 	return SteamUserStats()->ResetAllStats(true);
 }
 
-bool CSteamAchievements::SetStat(const char *name, int32 data) {
+bool CSteamStats::SetStat(const char *name, int32 data) {
 	if (!initialized) { return false; }
 
 	return SteamUserStats()->SetStat(name, data);
 }
 
-bool CSteamAchievements::SetStat(const char *name, float data) {
+bool CSteamStats::SetStat(const char *name, float data) {
 	if (!initialized) { return false; }
 
 	return SteamUserStats()->SetStat(name, data);
 }
 
-bool CSteamAchievements::ClearAchievement(const char* ID)
+bool CSteamStats::ClearAchievement(const char* ID)
 {
 	// Have we received a call back from Steam yet?
 	if (!initialized) {
@@ -169,11 +181,12 @@ bool CSteamAchievements::ClearAchievement(const char* ID)
 	return SteamUserStats()->ClearAchievement(ID);
 }
 
-bool CSteamAchievements::StoreStats() {
+bool CSteamStats::StoreStats() {
+	if (!initialized) { return false; }
 	return SteamUserStats()->StoreStats();
 }
 
-void CSteamAchievements::OnUserStatsReceived( UserStatsReceived_t *pCallback )
+void CSteamStats::OnUserStatsReceived( UserStatsReceived_t *pCallback )
 {
 	// we may get callbacks for other games' stats arriving, ignore them
 	if (app_id == pCallback->m_nGameID )
@@ -191,7 +204,7 @@ void CSteamAchievements::OnUserStatsReceived( UserStatsReceived_t *pCallback )
 	}
 }
 
-void CSteamAchievements::OnUserStatsStored( UserStatsStored_t *pCallback )
+void CSteamStats::OnUserStatsStored( UserStatsStored_t *pCallback )
 {
 	// we may get callbacks for other games' stats arriving, ignore them
 	if ( app_id == pCallback->m_nGameID )
@@ -209,7 +222,7 @@ void CSteamAchievements::OnUserStatsStored( UserStatsStored_t *pCallback )
 	}
 }
 
-void CSteamAchievements::OnAchievementStored( UserAchievementStored_t *pCallback )
+void CSteamStats::OnAchievementStored( UserAchievementStored_t *pCallback )
 {
      // we may get callbacks for other games' stats arriving, ignore them
      if ( app_id == pCallback->m_nGameID )
@@ -223,42 +236,28 @@ extern "C" {
     static drb_api_t *drb_api;
     mrb_state *global_state;
 
-    CSteamAchievements *steamStats = new CSteamAchievements();
+    CSteamStats *steamStats = new CSteamStats();
 
-    static void steam_achievements_shutdown () {
+    static void steam_stats_shutdown () {
     	    SteamAPI_Shutdown();
     }
 
-    static void steam_achievements_mrb_shutdown (mrb_state *state) {
+    static void steam_stats_mrb_shutdown (mrb_state *state) {
     	    SteamAPI_Shutdown();
     }
 
-    static mrb_value steam_achievements_mrb_set_stat(mrb_state *state, mrb_value self) {
-    	mrb_value name;
-	mrb_value int_or_float;
+    static mrb_value steam_stats_mrb_set_stat(mrb_state *state, mrb_value self) {
+    	const char *name;
+	int32 integer;
 
 	// https://github.com/mruby/mruby/blob/510ebd738dc1326fd8c9f3a702f0d826d7fb330a/src/class.c#L1704-L1723
-	// expect 2 ints / floats
-    	drb_api->mrb_get_args(state, "ii", &name, &int_or_float);
+	// expect 1 string, 1 int
+    	drb_api->mrb_get_args(state, "zi", &name, &integer);
 
-	const char* c_str = drb_api->mrb_str_to_cstr(state, name);
-
-    	if (mrb_integer_p(int_or_float)) {
-        	int32_t i32 = (int32_t)mrb_integer(int_or_float);
-        	return mrb_bool_value(steamStats->SetStat(c_str, i32));
-    	}
-    	else if (mrb_float_p(int_or_float)) {
-        	float c_float = (float)mrb_float(int_or_float);
-        	return mrb_bool_value(steamStats->SetStat(c_str, c_float));
-    	}
-
-	// neither int or float given, just return false. (should we raise?)
-	auto standard_error = drb_api->mrb_class_get(state, "StandardError");
-	drb_api->mrb_raise(state, standard_error, "Float or Integer not given to SetStat");
-    	return mrb_false_value();
+        return mrb_bool_value(steamStats->SetStat(name, integer));
     }
 
-    static mrb_value steam_achievements_mrb_unlock_achievement(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_unlock_achievement(mrb_state *state, mrb_value self) {
 		char *c_str;
 
 		// CString
@@ -267,7 +266,7 @@ extern "C" {
 		return mrb_bool_value(steamStats->UnlockAchievement(c_str));
     }
 
-    static mrb_value steam_achievements_mrb_indicate_achievement_progress(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_indicate_achievement_progress(mrb_state *state, mrb_value self) {
 		char *c_str;
 		uint32 c_currentProgress;
 		uint32 c_maxProgress;
@@ -278,34 +277,72 @@ extern "C" {
 		return mrb_bool_value(steamStats->IndicateAchievementProgress(c_str, c_currentProgress, c_maxProgress));
     }
 
+    static void log_method_call(const char *method_name, const char *args[], int arg_length) {
+    	const char *prefix = ": ";
+    	const char *open_parentheses = "(";
+    	const char *close_parentheses = ")";
+
+    	// Calculate total buffer size needed
+    	int buffer_length = strlen(prefix) + strlen(method_name) +
+                        	strlen(open_parentheses) + strlen(close_parentheses);
+
+    	for (int i = 0; i < arg_length; i++) {
+        	buffer_length += strlen(args[i]);
+        	if (i < arg_length - 1) buffer_length++; // for commas
+    	}
+    	buffer_length++; // for null terminator
+
+    	char buffer[buffer_length];
+    	buffer[0] = '\0';
+
+    	// Build the string
+    	strcat(buffer, prefix);
+    	strcat(buffer, method_name);
+    	strcat(buffer, open_parentheses);
+
+    	for (int i = 0; i < arg_length; i++) {
+        	strcat(buffer, args[i]);
+        	if (i < arg_length - 1) strcat(buffer, ", ");
+    	}
+
+    	strcat(buffer, close_parentheses);
+    	drb_api->drb_log_write("Steam::ClientStats", LOG_LEVEL_DEBUG, buffer);
+    }
+
     // Will "reset" an achievement
-    static mrb_value steam_achievements_mrb_clear_achievement(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_clear_achievement(mrb_state *state, mrb_value self) {
 		char *c_str;
 
 		// CString
 		drb_api->mrb_get_args(state, "z", &c_str);
 
+		const char *args[1] = {c_str};
+		log_method_call("clear_achievement", args, 1);
 		return mrb_bool_value(steamStats->ClearAchievement(c_str));
     }
 
-    static mrb_value steam_achievements_mrb_reset_all_stats(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_reset_all_stats(mrb_state *state, mrb_value self) {
 		return mrb_bool_value(steamStats->ResetAllStats());
     }
 
-    static mrb_value steam_achievements_mrb_reset_all_stats_and_achievements(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_reset_all_stats_and_achievements(mrb_state *state, mrb_value self) {
 		return mrb_bool_value(steamStats->ResetAllStatsAndAchievements());
     }
 
-    static mrb_value steam_achievements_mrb_get_achievement_status(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_get_achievement_status(mrb_state *state, mrb_value self) {
 		char *c_str;
 
 		// CString
 		drb_api->mrb_get_args(state, "z", &c_str);
 
-		return drb_api->mrb_int_value(state, steamStats->GetAchievementStatus(c_str));
+		// Returns -1, 0, or 1. Should we convert to symbols? throw an error? Return :failed | true | false?
+		// no idea.
+		auto status = steamStats->GetAchievementStatus(c_str);
+
+		return drb_api->mrb_int_value(state, status);
     }
 
-    static mrb_value steam_achievements_mrb_store_stats(mrb_state *state, mrb_value self) {
+    static mrb_value steam_stats_mrb_store_stats(mrb_state *state, mrb_value self) {
 		return mrb_bool_value(steamStats->StoreStats());
     }
 
@@ -313,28 +350,31 @@ extern "C" {
     void drb_register_c_extensions_with_api(mrb_state *state, struct drb_api_t *api) {
         drb_api = api;
         struct RClass *SteamModule = drb_api->mrb_define_module(state, "Steam");
-        struct RClass *SteamStats = drb_api->mrb_define_module_under(state, SteamModule, "Stats");
+        struct RClass *SteamStats = drb_api->mrb_define_module_under(state, SteamModule, "ClientStats");
 
 	// Singleton for steam achievements, may live to regret this, but fine for now.
 
 	// SetStat
-	drb_api->mrb_define_module_function(state, SteamStats, "set_stat", steam_achievements_mrb_set_stat, MRB_ARGS_REQ(2));
+	drb_api->mrb_define_module_function(state, SteamStats, "set_stat", steam_stats_mrb_set_stat, MRB_ARGS_REQ(2));
 	// UnlockAchievement
-	drb_api->mrb_define_module_function(state, SteamStats, "unlock_achievement", steam_achievements_mrb_unlock_achievement, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "unlock_achievement", steam_stats_mrb_unlock_achievement, MRB_ARGS_REQ(1));
 	// ClearAchievement
-	drb_api->mrb_define_module_function(state, SteamStats, "reset_achievement", steam_achievements_mrb_clear_achievement, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "clear_achievement", steam_stats_mrb_clear_achievement, MRB_ARGS_REQ(1));
 	// ResetAllStats
-	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats", steam_achievements_mrb_reset_all_stats, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats", steam_stats_mrb_reset_all_stats, MRB_ARGS_NONE());
 	// ResetAllStatsAndAchievements
-	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats_and_achievements", steam_achievements_mrb_reset_all_stats_and_achievements, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "reset_all_stats_and_achievements", steam_stats_mrb_reset_all_stats_and_achievements, MRB_ARGS_NONE());
 	// GetAchievementStatus
-	drb_api->mrb_define_module_function(state, SteamStats, "achievement_status", steam_achievements_mrb_get_achievement_status, MRB_ARGS_REQ(1));
+	drb_api->mrb_define_module_function(state, SteamStats, "achievement_status", steam_stats_mrb_get_achievement_status, MRB_ARGS_REQ(1));
 	// StoreStats
-	drb_api->mrb_define_module_function(state, SteamStats, "store_stats", steam_achievements_mrb_store_stats, MRB_ARGS_NONE());
+	drb_api->mrb_define_module_function(state, SteamStats, "store_stats", steam_stats_mrb_store_stats, MRB_ARGS_NONE());
 
-        printf("* INFO: C extension 'Steam Stats & Achievements' registration completed.\n");
+	// IndicateAchievementProgress
+	drb_api->mrb_define_module_function(state, SteamStats, "indicate_achievement_progress", steam_stats_mrb_indicate_achievement_progress, MRB_ARGS_REQ(3));
 
-	mrb_atexit_func(steam_achievements_mrb_shutdown);
-        atexit(steam_achievements_shutdown);
+        printf("* INFO: C extension 'steam_stats' registration completed.\n");
+
+	mrb_atexit_func(steam_stats_mrb_shutdown);
+        atexit(steam_stats_shutdown);
     }
 }

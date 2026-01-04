@@ -1,0 +1,190 @@
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main]
+
+# Always use bash.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+
+
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x86_64, aarch64]
+        include:
+          - arch: x86_64
+            dragonruby_arch: amd64
+          - arch: aarch64
+            dragonruby_arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: konnorrogers/steam-sdk
+          ref: main
+          token: ${{ secrets.STEAMWORKS_ACCESS_TOKEN }}
+          path: steam-sdk
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake clang
+
+      - name: Install cross-compilation tools (aarch64)
+        if: matrix.arch == 'aarch64'
+        run: |
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Get DragonRuby
+        run: |
+          mkdir -p ./tmp
+          curl -L $(curl -u "${{ secrets.DRAGONRUBY_USERNAME }}:${{ secrets.DRAGONRUBY_PASSWORD }}" https://dragonruby.org/api/download_pro_subscription_mac) -o ./tmp/dragonruby.zip
+          mkdir -p ./tmp/dragonruby-tmp
+          unzip ./tmp/dragonruby.zip -d ./tmp/dragonruby-tmp
+          bash ./copy-dragonruby ./tmp/dragonruby-tmp .
+
+      - name: Build Linux ${{ matrix.arch }}
+        run: |
+          make build
+
+      - name: Native Test Linux ${{ matrix.arch }}
+        run: |
+          make test-native
+
+      - name: Non-Native Test Linux ${{ matrix.arch }}
+        run: |
+          make test-non-native
+
+      - name: Upload Linux ${{ matrix.dragonruby_arch }} artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.dragonruby_arch }}
+          path: mygame/native/linux-${{ matrix.dragonruby_arch }}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: konnorrogers/steam-sdk
+          ref: main
+          token: ${{ secrets.STEAMWORKS_ACCESS_TOKEN }}
+          path: steam-sdk
+
+      - name: Get DragonRuby
+        run: |
+          mkdir -p ./tmp
+          curl -L $(curl -u "${{ secrets.DRAGONRUBY_USERNAME }}:${{ secrets.DRAGONRUBY_PASSWORD }}" https://dragonruby.org/api/download_pro_subscription_mac) -o ./tmp/dragonruby.zip
+          mkdir -p ./tmp/dragonruby-tmp
+          unzip ./tmp/dragonruby.zip -d ./tmp/dragonruby-tmp
+          bash ./copy-dragonruby ./tmp/dragonruby-tmp .
+
+      - name: Build Windows x64
+        run: |
+          make build
+
+      - name: Native Test Windows x64
+        run: |
+          make test-native
+
+      - name: Non-Native Test Windows x64
+        run: |
+          make test-non-native
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-amd64
+          path: mygame/native/windows-amd64
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+
+      - uses: actions/checkout@v4
+        with:
+          repository: konnorrogers/steam-sdk
+          ref: main
+          token: ${{ secrets.STEAMWORKS_ACCESS_TOKEN }}
+          path: steam-sdk
+
+      - name: Get DragonRuby
+        run: |
+          mkdir -p ./tmp
+          curl -L $(curl -u "${{ secrets.DRAGONRUBY_USERNAME }}:${{ secrets.DRAGONRUBY_PASSWORD }}" https://dragonruby.org/api/download_pro_subscription_mac) -o ./tmp/dragonruby.zip
+          mkdir -p ./tmp/dragonruby-tmp
+          unzip ./tmp/dragonruby.zip -d ./tmp/dragonruby-tmp
+          bash ./copy-dragonruby ./tmp/dragonruby-tmp .
+
+
+      - name: Build MacOS
+        run: |
+          make build
+
+      - name: Native Test MacOS
+        run: |
+          make test-native
+
+      - name: Non-Native Test MacOS
+        run: |
+          make test-non-native
+
+      - name: Upload MacOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: mygame/native/macos/
+
+  package:
+    needs: [
+      build-linux,
+      build-windows,
+      build-macos,
+      # Forget IOS / Android. They can't play Steam...right?
+    ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_ACCESS_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Organize extensions
+        run: |
+          cp -r artifacts/ mygame/native/*
+
+      - name: Create release package
+        run: |
+          mkdir -p ./tmp/steam_stats/native
+          cp mygame/steam_stats.rb ./tmp/steam_stats/
+          cp -r mygame/native/* ./tmp/steam_stats/native/
+          tar -czf steam_stats.tar.gz -C ./tmp/steam_stats .
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: native-extensions.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

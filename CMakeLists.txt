@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
-project(extension CXX)
+
+set(PROJECT_NAME "steam_stats")
+project(${PROJECT_NAME} CXX)
 
 message(STATUS "C Compiler: ${CMAKE_C_COMPILER}")
 message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER}")
@@ -10,16 +12,33 @@ message(STATUS "Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
 set(STEAMWORKS_SDK "${CMAKE_SOURCE_DIR}/steam-sdk")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-if(APPLE)
+if(WIN32)
+    set(PLATFORM "windows-amd64")
+    set(DLLEXT "dll")
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/win64")
+        set(STEAM_LIB "steam_api64")
+        set(STEAM_DYLIB "steam_api64.dll")
+    else()
+        set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin")
+        set(STEAM_LIB "steam_api")
+        set(STEAM_DYLIB "steam_api.dll")
+    endif()
+elseif(APPLE)
     set(PLATFORM "macos")
     set(DLLEXT "dylib")
     set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/osx")
     set(STEAM_LIB "steam_api")
     set(STEAM_DYLIB "libsteam_api.dylib")
 elseif(UNIX)
-    set(PLATFORM "linux-amd64")
     set(DLLEXT "so")
-    set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/linux64")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+        set(PLATFORM "linux-arm64")
+        set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/linux64")
+    else()
+        set(PLATFORM "linux-amd64")
+        set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/linux64")
+    endif()
     set(STEAM_LIB "steam_api")
     set(STEAM_DYLIB "libsteam_api.so")
 else()
@@ -27,7 +46,7 @@ else()
 endif()
 
 # Directories
-set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/src/extension.cpp")
+set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/src/steam_stats.cpp")
 set(BUILD_DIR "${CMAKE_SOURCE_DIR}/mygame/native/${PLATFORM}")
 
 # Set output directory
@@ -35,41 +54,44 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${BUILD_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUILD_DIR})
 
 # Create shared library
-add_library(extension SHARED ${SOURCE_FILE})
-
-target_include_directories(extension PRIVATE
+add_library(steam_stats SHARED ${SOURCE_FILE})
+target_include_directories(steam_stats PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${STEAMWORKS_SDK}/public
 )
 
 # Set C++ standard
-set_property(TARGET extension PROPERTY CXX_STANDARD 11)
+set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 11)
 
 # Set library properties
-set_target_properties(extension PROPERTIES
+set_target_properties(${PROJECT_NAME} PROPERTIES
     PREFIX ""
     SUFFIX ".${DLLEXT}"
     POSITION_INDEPENDENT_CODE ON
 )
 
 # Link Steam API
-target_link_libraries(extension PRIVATE ${STEAM_LIB_DIR}/${STEAM_DYLIB})
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${STEAM_LIB_DIR}/${STEAM_LIB}.lib)
+else()
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${STEAM_LIB_DIR}/${STEAM_DYLIB})
+endif()
 
 # Set rpath for runtime library loading
 if(APPLE)
-    set_target_properties(extension PROPERTIES
+    set_target_properties(${PROJECT_NAME} PROPERTIES
         BUILD_RPATH "@loader_path"
         INSTALL_RPATH "@loader_path"
     )
-elseif(UNIX)
-    set_target_properties(extension PROPERTIES
+elseif(UNIX AND NOT WIN32)
+    set_target_properties(${PROJECT_NAME} PROPERTIES
         BUILD_RPATH "$ORIGIN"
         INSTALL_RPATH "$ORIGIN"
     )
 endif()
 
 # Copy Steam dylib to output directory
-add_custom_command(TARGET extension POST_BUILD
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${STEAM_LIB_DIR}/${STEAM_DYLIB}"
         "${BUILD_DIR}/${STEAM_DYLIB}"
