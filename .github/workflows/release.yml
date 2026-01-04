@@ -20,8 +20,6 @@ jobs:
             dragonruby_arch: amd64
           - arch: aarch64
             dragonruby_arch: arm64
-    env:
-      TARGET_ARCH: ${{ matrix.dragonruby_arch }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -51,14 +49,20 @@ jobs:
           ls -a
 
       - name: Build Linux ${{ matrix.arch }}
+        env:
+          TARGET_ARCH: ${{ matrix.dragonruby_arch }}
         run: |
           make build
 
       - name: Native Test Linux ${{ matrix.arch }}
+        env:
+          TARGET_ARCH: ${{ matrix.dragonruby_arch }}
         run: |
           make test-native
 
       - name: Non-Native Test Linux ${{ matrix.arch }}
+        env:
+          TARGET_ARCH: ${{ matrix.dragonruby_arch }}
         run: |
           make test-non-native
 
