@@ -1,9 +1,9 @@
 #include "steam/isteamuserstats.h"
-#include <_string.h>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
+#include <string.h>
 #include <mruby.h>
 #include <mruby/array.h>
 #include <dragonruby.h>
