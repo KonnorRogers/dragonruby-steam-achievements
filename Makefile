@@ -5,6 +5,9 @@ CXX = clang++
 
 all: build
 
+tag:
+	git tag -a "v$(cat "./mygame/VERSION.txt")"
+
 build:
 	@mkdir -p build
 	@cd build && cmake -DTARGET_ARCH=$(TARGET_ARCH) -DCMAKE_CXX_COMPILER=$(CXX) -DCMAKE_C_COMPILER=$(CC) .. && cmake --build .
