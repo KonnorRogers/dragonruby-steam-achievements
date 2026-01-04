@@ -22,6 +22,7 @@ module SharedTestsModule
 
   def test_methods_defined(args, assert)
     methods = [
+      :version,
       :initialized?,
       :app_id,
       :set_stat,
@@ -39,6 +40,12 @@ module SharedTestsModule
         "Steam::ClientStats should respond to #{method}"
       )
     end
+  end
+
+  def test_version(args, assert)
+    version = Steam::ClientStats.version
+    actual_version = File.read("VERSION.txt").split("\n")[0]
+    assert.true!(version == actual_version)
   end
 
   def test_app_id(args, assert)
