@@ -7,9 +7,14 @@
 
 These are DragonRuby bindings for the [ISteamUserStats](https://partner.steamgames.com/doc/api/ISteamUserStats) interface from Steam. It is not complete, and has renamed some portion of the API, but is meant to be a minimal amount for single player games.
 
+## Prerequisites
+
+- Make sure you are a partner with Steam <https://partner.steamgames.com/>
+- Have a steam app id
+
 ## Installation
 
-Grab the precompiled binaries from [/releases](./releases) and place them in `mygame/vendor/steam_stats`
+Grab the precompiled binaries + Ruby code from [/releases](./releases) and place them in `mygame/vendor/steam_stats`
 
 ## Getting Started
 

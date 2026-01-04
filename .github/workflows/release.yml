@@ -9,6 +9,9 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: write  # For creating releases
+
 jobs:
   build-linux:
     runs-on: ubuntu-latest
@@ -182,11 +185,14 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: steam_stats.tar.gz
+          name: steam_stats-{{ github.ref_name }}.tar.gz
           path: ./steam_stats.tar.gz
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.ref_type == 'tag'
         with:
-          files: steam_stats.tar.gz
+          files: |
+            steam_stats-{{ github.ref_name }}.tar.gz
+          token: ${{ secrets.GITHUB_TOKEN }}
+
