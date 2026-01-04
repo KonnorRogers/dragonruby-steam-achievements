@@ -12,9 +12,12 @@ message(STATUS "Compiler Version: ${CMAKE_CXX_COMPILER_VERSION}")
 set(STEAMWORKS_SDK "${CMAKE_SOURCE_DIR}/steam-sdk")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+
 if(WIN32)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     set(PLATFORM "windows-amd64")
     set(DLLEXT "dll")
+
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(STEAM_LIB_DIR "${STEAMWORKS_SDK}/redistributable_bin/win64")
         set(STEAM_LIB "steam_api64")

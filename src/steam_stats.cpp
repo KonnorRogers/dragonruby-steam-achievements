@@ -235,7 +235,7 @@ extern "C" {
     	const char *close_parentheses = ")";
 
     	// Calculate total buffer size needed
-    	int buffer_length = strlen(prefix) + strlen(method_name) +
+    	size_t buffer_length = strlen(prefix) + strlen(method_name) +
                         	strlen(open_parentheses) + strlen(close_parentheses);
 
     	for (int i = 0; i < arg_length; i++) {
@@ -244,7 +244,12 @@ extern "C" {
     	}
     	buffer_length++; // for null terminator
 
-    	char buffer[buffer_length];
+    	char *buffer = (char*)malloc(buffer_length);
+    	if (buffer == NULL) {
+        	drb_api->drb_log_write("steam_stats", LOG_LEVEL_ERROR, "Failed to allocate memory for log");
+        	return;
+    	}
+
     	buffer[0] = '\0';
 
     	// Build the string
@@ -259,6 +264,7 @@ extern "C" {
 
     	strcat(buffer, close_parentheses);
     	drb_api->drb_log_write("steam_stats", LOG_LEVEL_DEBUG, buffer);
+    	free(buffer);
     }
 
     // Will "reset" an achievement
