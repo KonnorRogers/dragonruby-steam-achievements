@@ -2,11 +2,12 @@
 
 CC = clang
 CXX = clang++
+VERSION := $(shell cat ./mygame/VERSION.txt)
 
 all: build
 
 tag:
-	git tag -a "v$(cat "./mygame/VERSION.txt")"
+	git tag -a "v$(VERSION)" -m "Tag v$(VERSION)"
 
 build:
 	@mkdir -p build
